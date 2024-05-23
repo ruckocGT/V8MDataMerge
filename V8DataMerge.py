@@ -4,14 +4,27 @@ from datetime import date
 import numpy as np
 
 def fill_missing_values(df):
-    df['Page name'].fillna('Title', inplace=True)
-    df['Form template'].ffill(inplace=True)
-    df['Form_instance_ID'].ffill(inplace=True)
-    df['Form template version'].ffill(inplace=True)
+    # Fill missing values for suffixed columns
+    for col in ['Form template', 'Form template version', 'Request Type', 'Risk Level', 'Audit Opinion']:
+        if f'{col}_x' in df.columns and f'{col}_y' in df.columns:
+            df[f'{col}_x'].fillna(df[f'{col}_y'], inplace=True)
+            df[f'{col}_y'].fillna(df[f'{col}_x'], inplace=True)
+    
+    # Forward fill for specific columns
+    for col in ['Form template', 'Form template version', 'Request Type', 'Risk Level', 'Audit Opinion']:
+        df[f'{col}_x'].ffill(inplace=True)
+        df[f'{col}_y'].ffill(inplace=True)
+    
+    # Handle 'Not Entered' condition
     bad_cols = ['Request Type', 'Risk Level', 'Audit Opinion']
     for col in bad_cols:
-        df.loc[(df['Page name'] == 'Title') & (df[col].isin(["", "-", np.nan])), col] = 'Not Entered'
-        df[col].ffill(inplace=True)
+        df.loc[(df['Page name_x'] == 'Title') & (df[f'{col}_x'].isin(["", "-", np.nan])), f'{col}_x'] = 'Not Entered'
+        df[f'{col}_x'].ffill(inplace=True)
+    
+    # Select the final columns to use
+    for col in ['Form template', 'Form template version', 'Request Type', 'Risk Level', 'Audit Opinion']:
+        df[col] = df[f'{col}_x']
+    
     return df
 
 def add_data_from_masterfile(all_df, master_df):
@@ -54,15 +67,56 @@ def main():
                 df1 = pd.read_excel(file1, engine='openpyxl')
                 df2 = pd.read_excel(file2, engine='openpyxl')
 
+                # Normalize column names
+                df1.columns = df1.columns.str.strip()
+                df2.columns = df2.columns.str.strip()
+
+                # Debug: Display columns in the dataframes
+                st.write("Columns in the master dataframe (df1):")
+                st.write(df1.columns.tolist())
+                st.write("Columns in the Valid8Me dataframe (df2):")
+                st.write(df2.columns.tolist())
+
+                # Ensure Form_instance_ID columns are of the same type
+                df1['Form_instance_ID'] = df1['Form_instance_ID'].astype(str)
+                df2['Form_instance_ID'] = df2['Form_instance_ID'].astype(str)
+
+                # Check if required columns exist
+                required_columns = ['Form_instance_ID', 'Page name']
+                for col in required_columns:
+                    if col not in df1.columns:
+                        st.warning(f"Column '{col}' is missing in the master dataframe.")
+                        return
+                    if col not in df2.columns:
+                        st.warning(f"Column '{col}' is missing in the Valid8Me dataframe.")
+                        return
+
+                # Merge data
                 merged_df = pd.merge(df1, df2, on=['Form_instance_ID', 'Page name'], how='outer')
 
+                # Debug: Display columns after merge
+                st.write("Columns after merge:")
+                st.write(merged_df.columns.tolist())
+
+                # Fill missing values
                 merged_df = fill_missing_values(merged_df)
 
+                # Debug: Display columns after filling missing values
+                st.write("Columns after fill_missing_values:")
+                st.write(merged_df.columns.tolist())
+
+                # Add data from master file
                 merged_df = add_data_from_masterfile(merged_df, df1)
 
+                # Debug: Display columns after adding data from master file
+                st.write("Columns after add_data_from_masterfile:")
+                st.write(merged_df.columns.tolist())
+
+                # Save merged file
                 merged_file_path = "merged_file.xlsx"
                 merged_df.to_excel(merged_file_path, index=False)
 
+                # Provide download link for CSV
                 csv_data = merged_df.to_csv(index=False).encode('utf-8')
                 st.download_button(label="Download CSV", data=csv_data, file_name="Valid8MeAggregate.csv", mime="text/csv")
 
@@ -74,3 +128,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

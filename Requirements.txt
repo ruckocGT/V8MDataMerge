@@ -1,4 +1,4 @@
 pandas
-openpyxl
-streamlit
+openpyxl>==3.1
+streamlit==1.30
 numpy
