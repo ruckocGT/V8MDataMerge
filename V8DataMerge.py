@@ -4,20 +4,14 @@ from datetime import date
 import numpy as np
 
 def fill_missing_values(df):
-    # NA Fill
     df['Page name'].fillna('Title', inplace=True)
-    
-    # Standard Forward Fill
     df['Form template'].ffill(inplace=True)
     df['Form_instance_ID'].ffill(inplace=True)
     df['Form template version'].ffill(inplace=True)
-
-    # Special Conditions
     bad_cols = ['Request Type', 'Risk Level', 'Audit Opinion']
     for col in bad_cols:
         df.loc[(df['Page name'] == 'Title') & (df[col].isin(["", "-", np.nan])), col] = 'Not Entered'
         df[col].ffill(inplace=True)
-    
     return df
 
 def add_data_from_masterfile(all_df, master_df):
@@ -56,24 +50,19 @@ def main():
 
     if st.button("Clean Data Process"):
         if file1 is not None and file2 is not None:
-            df1 = pd.read_excel(file1)
-            df2 = pd.read_excel(file2)
-
             try:
-                # Merge data
+                df1 = pd.read_excel(file1, engine='openpyxl')
+                df2 = pd.read_excel(file2, engine='openpyxl')
+
                 merged_df = pd.merge(df1, df2, on=['Form_instance_ID', 'Page name'], how='outer')
 
-                # Fill missing values
                 merged_df = fill_missing_values(merged_df)
 
-                # Add data from master file
-                merged_df = add_data_from_masterfile(merged_df, df1)  # Assuming df1 is the master file
+                merged_df = add_data_from_masterfile(merged_df, df1)
 
-                # Save merged file
                 merged_file_path = "merged_file.xlsx"
                 merged_df.to_excel(merged_file_path, index=False)
 
-                # Provide download link for CSV
                 csv_data = merged_df.to_csv(index=False).encode('utf-8')
                 st.download_button(label="Download CSV", data=csv_data, file_name="Valid8MeAggregate.csv", mime="text/csv")
 
@@ -85,4 +74,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
